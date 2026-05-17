@@ -4,12 +4,38 @@ import ReactMarkdown from 'react-markdown'
 export default function MessageBubble({ message }) {
   const [copied, setCopied] = useState(false)
   const [liked, setLiked] = useState(null)
+  const [speaking, setSpeaking] = useState(false)
   const isUser = message.role === 'user'
 
   const copy = () => {
     navigator.clipboard.writeText(message.content)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
+  }
+
+  const speak = () => {
+    if (!window.speechSynthesis) return
+
+    if (speaking) {
+      window.speechSynthesis.cancel()
+      setSpeaking(false)
+      return
+    }
+
+    window.speechSynthesis.cancel()
+    const utterance = new SpeechSynthesisUtterance(message.content)
+    utterance.rate = 0.96
+    utterance.pitch = 1
+    utterance.volume = 1
+
+    const voices = window.speechSynthesis.getVoices()
+    const preferredVoice = voices.find(v => /en-IN/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang))
+    if (preferredVoice) utterance.voice = preferredVoice
+
+    utterance.onstart = () => setSpeaking(true)
+    utterance.onend = () => setSpeaking(false)
+    utterance.onerror = () => setSpeaking(false)
+    window.speechSynthesis.speak(utterance)
   }
 
   return (
@@ -20,9 +46,9 @@ export default function MessageBubble({ message }) {
       }
       <div style={{ flex:1, minWidth:0 }}>
         <p style={{ fontSize:12, fontWeight:600, color: isUser ? '#60a5fa' : '#c96442', marginBottom:5, letterSpacing:'0.2px' }}>{isUser ? 'You' : 'Mitra AI'}</p>
-        {message.image && (
+        {message.attachment && (
           <div style={{ marginBottom:8, padding:'6px 10px', background:'#2a2a2a', borderRadius:8, fontSize:12, color:'#888', display:'inline-flex', alignItems:'center', gap:6 }}>
-            📎 {message.image.name || 'Attached file'}
+            📎 {message.attachment.name || 'Attached file'}
           </div>
         )}
         <div className="prose" style={{ fontSize:14.5, color:'#d4d4d4', lineHeight:1.75 }}>
@@ -34,6 +60,11 @@ export default function MessageBubble({ message }) {
               onMouseEnter={e => e.currentTarget.style.background='#2a2a2a'}
               onMouseLeave={e => e.currentTarget.style.background='transparent'}>
               {copied ? '✓ Copied' : '⧉ Copy'}
+            </button>
+            <button onClick={speak} style={{ padding:'4px 9px', borderRadius:6, border:'none', background: speaking ? '#2a2a2a' : 'transparent', fontSize:13, color: speaking ? '#c96442' : '#555', cursor:'pointer' }}
+              onMouseEnter={e => e.currentTarget.style.background='#2a2a2a'}
+              onMouseLeave={e => { if(!speaking) e.currentTarget.style.background='transparent'; }}>
+              {speaking ? '🔊 Stop' : '🔈 Listen'}
             </button>
             <button onClick={() => setLiked('up')} style={{ padding:'4px 9px', borderRadius:6, border:'none', background: liked==='up' ? '#2a2a2a' : 'transparent', fontSize:13, color: liked==='up' ? '#4ade80' : '#555', cursor:'pointer' }}
               onMouseEnter={e => e.currentTarget.style.background='#2a2a2a'}
