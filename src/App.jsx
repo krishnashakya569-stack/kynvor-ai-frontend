@@ -1,10 +1,15 @@
-﻿import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
+import { Capacitor } from '@capacitor/core'
 import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import AuthPanel from './components/AuthPanel'
+import LandingPage from './components/LandingPage'
 import { supabase, supabaseConfigError } from './lib/supabase'
 
+const isNativeApp = Capacitor.isNativePlatform()
+
 function App() {
+  const [showChat, setShowChat] = useState(() => isNativeApp || window.location.hash === '#chat')
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
   const [authError, setAuthError] = useState('')
@@ -23,6 +28,61 @@ function App() {
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
+
+  const openChat = () => {
+    window.location.hash = 'chat'
+    setShowChat(true)
+  }
+
+  const openWebsite = () => {
+    if (isNativeApp) return
+    window.location.hash = ''
+    setShowChat(false)
+  }
+
+  const createConversation = useCallback(async (userId = session?.user?.id) => {
+    if (!userId) return null
+
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({ user_id: userId, title: 'New conversation', messages: [] })
+      .select('id,title,messages,updated_at')
+      .single()
+
+    if (error) throw error
+
+    setConversations(prev => [data, ...prev])
+    setActiveId(data.id)
+    return data
+  }, [session?.user?.id])
+
+  const loadConversations = useCallback(async (userId) => {
+    setLoadingChats(true)
+    setAuthError('')
+
+    try {
+      const { data, error } = await supabase
+        .from('conversations')
+        .select('id,title,messages,updated_at')
+        .order('updated_at', { ascending: false })
+
+      if (error) throw error
+
+      if (data?.length) {
+        setConversations(data)
+        setActiveId(data[0].id)
+        return
+      }
+
+      await createConversation(userId)
+    } catch (error) {
+      setAuthError(error.message || 'Could not load your chats.')
+      setConversations([])
+      setActiveId(null)
+    } finally {
+      setLoadingChats(false)
+    }
+  }, [createConversation])
 
   useEffect(() => {
     if (!supabase) {
@@ -52,52 +112,7 @@ function App() {
     }
 
     loadConversations(session.user.id)
-  }, [session?.user?.id])
-
-  const loadConversations = async (userId) => {
-    setLoadingChats(true)
-    setAuthError('')
-
-    try {
-      const { data, error } = await supabase
-        .from('conversations')
-        .select('id,title,messages,updated_at')
-        .order('updated_at', { ascending: false })
-
-      if (error) throw error
-
-      if (data?.length) {
-        setConversations(data)
-        setActiveId(data[0].id)
-        return
-      }
-
-      await createConversation(userId)
-    } catch (error) {
-      setAuthError(error.message || 'Could not load your chats.')
-      setConversations([])
-      setActiveId(null)
-    } finally {
-      setLoadingChats(false)
-    }
-  }
-
-  const createConversation = async (userId = session?.user?.id) => {
-    if (!userId) return null
-
-    const { data, error } = await supabase
-      .from('conversations')
-      .insert({ user_id: userId, title: 'New conversation', messages: [] })
-      .select('id,title,messages,updated_at')
-      .single()
-
-    if (error) throw error
-
-    setConversations(prev => [data, ...prev])
-    setActiveId(data.id)
-    return data
-  }
-
+  }, [loadConversations, session?.user])
   const signIn = async (email, password) => {
     setAuthError('')
     setAuthLoading(true)
@@ -153,18 +168,22 @@ function App() {
     if (error) setAuthError(error.message)
   }
 
+  if (!showChat && !isNativeApp) {
+    return <LandingPage onOpenChat={openChat} />
+  }
+
   if (authLoading) {
-    return <div style={{ minHeight:'100vh', display:'grid', placeItems:'center', background:'#212121', color:'#aaa' }}>Loading Mitra AI…</div>
+    return <div className="app-loading">Loading Krivya AI...</div>
   }
 
   if (!session) {
-    return <AuthPanel onSignIn={signIn} onSignUp={signUp} loading={authLoading} error={authError} />
+    return <AuthPanel onSignIn={signIn} onSignUp={signUp} loading={authLoading} error={authError} onBack={openWebsite} isNativeApp={isNativeApp} />
   }
 
   const activeConv = conversations.find(c => c.id === activeId)
 
   return (
-    <div style={{ display:'flex', height:'100dvh', width:'100vw', overflow:'hidden', background:'#212121', position:'relative' }}>
+    <div className="chat-app-shell">
       {isMobile && sidebarOpen && (
         <div onClick={() => setSidebarOpen(false)} style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.55)', zIndex:20 }} />
       )}
@@ -178,20 +197,22 @@ function App() {
         onSignOut={signOut}
         isMobile={isMobile}
         isOpen={!isMobile || sidebarOpen}
+        onBackToWebsite={openWebsite}
+        isNativeApp={isNativeApp}
       />
 
       {loadingChats ? (
-        <div style={{ flex:1, display:'grid', placeItems:'center', color:'#777' }}>Loading chats…</div>
+        <div className="chat-loading">Loading chats...</div>
       ) : activeConv ? (
         <ChatWindow conversation={activeConv} onUpdateMessages={updateMessages} isMobile={isMobile} onToggleSidebar={() => setSidebarOpen(true)} />
       ) : (
-        <div style={{ flex:1, display:'grid', placeItems:'center', background:'#212121', color:'#aaa', padding:24, textAlign:'center' }}>
-          <div style={{ maxWidth:420 }}>
-            <div style={{ color:'#ececec', fontSize:22, fontWeight:600, marginBottom:8 }}>No conversation loaded</div>
-            <div style={{ color: authError ? '#f87171' : '#888', fontSize:14, lineHeight:1.6, marginBottom:18 }}>
-              {authError || 'Start a new conversation to begin using Mitra AI.'}
+        <div className="empty-state-panel">
+          <div>
+            <div className="empty-state-title">No conversation loaded</div>
+            <div className={authError ? 'empty-state-error' : 'empty-state-copy'}>
+              {authError || 'Start a new conversation to begin using Krivya AI.'}
             </div>
-            <button onClick={newConversation} style={{ padding:'10px 14px', borderRadius:10, border:'none', background:'#c96442', color:'white', cursor:'pointer', fontWeight:600 }}>
+            <button onClick={newConversation} className="primary-button compact">
               Start new conversation
             </button>
           </div>
