@@ -21,9 +21,9 @@ export default function Sidebar({
       }}
     >
       <div className="sidebar-brand-card">
-        <img src="/logo.png" alt="Krivya AI" className="navbar-logo" />
+        <img src="/logo.png" alt="Kynvor AI" className="navbar-logo" />
         <div>
-          <strong>Krivya AI</strong>
+          <strong>Kynvor AI</strong>
           <span>Your Personal AI Guide</span>
         </div>
       </div>

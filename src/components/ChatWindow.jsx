@@ -20,7 +20,7 @@ export default function ChatWindow({ conversation, onUpdateMessages, isMobile = 
   const [loading, setLoading] = useState(false)
   const [location, setLocation] = useState(null)
   const [locationStatus, setLocationStatus] = useState('')
-  const [fontScale, setFontScale] = useState(() => Number(localStorage.getItem('krivyaChatFontScale')) || 1)
+  const [fontScale, setFontScale] = useState(() => Number(localStorage.getItem('kynvorChatFontScale')) || 1)
   const chatScrollRef = useRef(null)
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function ChatWindow({ conversation, onUpdateMessages, isMobile = 
   const adjustFont = (step) => {
     setFontScale((current) => {
       const next = Math.min(1.35, Math.max(0.85, Number((current + step).toFixed(2))))
-      localStorage.setItem('krivyaChatFontScale', String(next))
+      localStorage.setItem('kynvorChatFontScale', String(next))
       return next
     })
   }
@@ -107,7 +107,7 @@ export default function ChatWindow({ conversation, onUpdateMessages, isMobile = 
               <Menu size={18} />
             </button>
           )}
-          <div className="chat-brand-pill"><Sparkles size={15} /> Krivya AI</div>
+          <div className="chat-brand-pill"><Sparkles size={15} /> Kynvor AI</div>
         </div>
         <div className="chat-actions">
           {!isMobile && locationStatus && <span className={location ? 'status-on' : ''}>{locationStatus}</span>}
@@ -128,7 +128,7 @@ export default function ChatWindow({ conversation, onUpdateMessages, isMobile = 
         {isEmpty ? (
           <div className="empty-chat">
             <div className="empty-logo"><Bot size={30} /></div>
-            <h1>How can Krivya AI help you today?</h1>
+            <h1>How can Kynvor AI help you today?</h1>
             <p>Ask about studying, coding, writing, live news, weather, current affairs, files, images, or voice.</p>
             <div className="suggestion-row">
               {suggestions.map(([Icon, label, prompt]) => (

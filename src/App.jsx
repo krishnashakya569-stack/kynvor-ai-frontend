@@ -4,6 +4,7 @@ import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import AuthPanel from './components/AuthPanel'
 import LandingPage from './components/LandingPage'
+import SplashIntro from './components/SplashIntro'
 import { supabase, supabaseConfigError } from './lib/supabase'
 
 const isNativeApp = Capacitor.isNativePlatform()
@@ -18,6 +19,7 @@ function App() {
   const [loadingChats, setLoadingChats] = useState(false)
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [showIntro, setShowIntro] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
 
   useEffect(() => {
     const onResize = () => {
@@ -105,6 +107,12 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!showIntro) return
+    const introTimer = window.setTimeout(() => setShowIntro(false), 2800)
+    return () => window.clearTimeout(introTimer)
+  }, [showIntro])
+
+  useEffect(() => {
     if (!session?.user) {
       setConversations([])
       setActiveId(null)
@@ -127,6 +135,39 @@ function App() {
     const { error } = await supabase.auth.signUp({ email, password })
     if (error) setAuthError(error.message)
     else setAuthError('Account created. Check your email if confirmation is enabled, then sign in.')
+    setAuthLoading(false)
+  }
+
+  const signInWithProvider = async (provider) => {
+    setAuthError('')
+    setAuthLoading(true)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: `${window.location.origin}${window.location.pathname}#chat`,
+      },
+    })
+    if (error) {
+      setAuthError(error.message)
+      setAuthLoading(false)
+    }
+  }
+
+  const sendPhoneOtp = async (phone) => {
+    setAuthError('')
+    setAuthLoading(true)
+    const { error } = await supabase.auth.signInWithOtp({ phone })
+    if (error) setAuthError(error.message)
+    else setAuthError('OTP sent. Enter the code to continue.')
+    setAuthLoading(false)
+    return !error
+  }
+
+  const verifyPhoneOtp = async (phone, token) => {
+    setAuthError('')
+    setAuthLoading(true)
+    const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' })
+    if (error) setAuthError(error.message)
     setAuthLoading(false)
   }
 
@@ -168,16 +209,32 @@ function App() {
     if (error) setAuthError(error.message)
   }
 
+  if (showIntro) {
+    return <SplashIntro />
+  }
+
   if (!showChat && !isNativeApp) {
     return <LandingPage onOpenChat={openChat} />
   }
 
   if (authLoading) {
-    return <div className="app-loading">Loading Krivya AI...</div>
+    return <div className="app-loading">Loading Kynvor AI...</div>
   }
 
   if (!session) {
-    return <AuthPanel onSignIn={signIn} onSignUp={signUp} loading={authLoading} error={authError} onBack={openWebsite} isNativeApp={isNativeApp} />
+    return (
+      <AuthPanel
+        onSignIn={signIn}
+        onSignUp={signUp}
+        onProviderSignIn={signInWithProvider}
+        onSendPhoneOtp={sendPhoneOtp}
+        onVerifyPhoneOtp={verifyPhoneOtp}
+        loading={authLoading}
+        error={authError}
+        onBack={openWebsite}
+        isNativeApp={isNativeApp}
+      />
+    )
   }
 
   const activeConv = conversations.find(c => c.id === activeId)
@@ -210,7 +267,7 @@ function App() {
           <div>
             <div className="empty-state-title">No conversation loaded</div>
             <div className={authError ? 'empty-state-error' : 'empty-state-copy'}>
-              {authError || 'Start a new conversation to begin using Krivya AI.'}
+              {authError || 'Start a new conversation to begin using Kynvor AI.'}
             </div>
             <button onClick={newConversation} className="primary-button compact">
               Start new conversation

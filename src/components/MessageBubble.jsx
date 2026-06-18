@@ -67,7 +67,7 @@ export default function MessageBubble({ message }) {
     <div className={`msg-fade message-row ${isUser ? 'from-user' : 'from-assistant'}`}>
       <div className="message-avatar">{isUser ? 'U' : 'K'}</div>
       <div className="message-content">
-        <p className="message-author">{isUser ? 'You' : 'Krivya AI'}</p>
+        <p className="message-author">{isUser ? 'You' : 'Kynvor AI'}</p>
         {message.attachment && (
           <div className="attachment-chip">
             Attached: {message.attachment.name || 'Attached file'}

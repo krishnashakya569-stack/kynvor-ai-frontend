@@ -156,7 +156,7 @@ export default function InputBar({ onSend, loading, isMobile = false }) {
             value={text}
             onChange={onInput}
             onKeyDown={onKey}
-            placeholder={recording ? 'Listening...' : transcribing ? 'Transcribing...' : 'Message Krivya AI...'}
+            placeholder={recording ? 'Listening...' : transcribing ? 'Transcribing...' : 'Message Kynvor AI...'}
             rows={1}
           />
           <button onClick={toggleRecording} title={recording ? 'Stop recording' : 'Start recording'} className={`composer-icon ${recording ? 'recording' : ''}`}>

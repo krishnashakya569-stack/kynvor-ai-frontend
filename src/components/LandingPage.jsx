@@ -11,13 +11,13 @@ import {
 } from 'lucide-react'
 import AnalogClock from './AnalogClock'
 
-const APK_DOWNLOAD_URL = import.meta.env.VITE_APK_DOWNLOAD_URL || '/downloads/krivya-ai.apk'
+const APK_DOWNLOAD_URL = import.meta.env.VITE_APK_DOWNLOAD_URL || '/downloads/kynvor-ai.apk'
 
 const features = [
   { icon: MessageSquare, title: 'Smart chat', text: 'Ask questions, write content, solve problems, and continue saved conversations.' },
-  { icon: Mic, title: 'Voice ready', text: 'Use speech features through the Krivya AI assistant experience.' },
+  { icon: Mic, title: 'Voice ready', text: 'Use speech features through the Kynvor AI assistant experience.' },
   { icon: FileText, title: 'File support', text: 'Work with PDFs, text, markdown, CSV, and JSON files from the chat.' },
-  { icon: Image, title: 'Image understanding', text: 'Upload images and get helpful analysis from Krivya AI.' },
+  { icon: Image, title: 'Image understanding', text: 'Upload images and get helpful analysis from Kynvor AI.' },
 ]
 
 const stats = [
@@ -39,10 +39,10 @@ export default function LandingPage({ onOpenChat }) {
       <div className="spark s4" />
 
       <header className="site-nav">
-        <a className="brand-lockup" href="#" aria-label="Krivya AI homepage">
-          <img src="/logo.png" alt="Krivya AI" className="navbar-logo" />
+        <a className="brand-lockup" href="#" aria-label="Kynvor AI homepage">
+          <img src="/logo.png" alt="Kynvor AI" className="navbar-logo" />
           <div>
-            <strong>Krivya AI</strong>
+            <strong>Kynvor AI</strong>
             <span>Your Personal AI Guide</span>
           </div>
         </a>
@@ -62,7 +62,7 @@ export default function LandingPage({ onOpenChat }) {
           <div className="eyebrow"><Sparkles size={16} /> Built for helpful everyday AI</div>
           <h1>
             <span>Meet</span>
-            <span className="hero-highlight">Krivya</span>
+            <span className="hero-highlight">Kynvor</span>
             <span className="hero-ai">AI</span>
           </h1>
           <p>
@@ -71,7 +71,7 @@ export default function LandingPage({ onOpenChat }) {
             assist, and grow with you.
           </p>
           <div className="hero-buttons">
-            <a className="primary-button" href={APK_DOWNLOAD_URL} download="KrivyaAI-v1.0.apk">
+            <a className="primary-button" href={APK_DOWNLOAD_URL} download="KynvorAI-v1.0.apk">
               <Download size={18} />
               Download APK
             </a>
@@ -102,11 +102,11 @@ export default function LandingPage({ onOpenChat }) {
           <div className="energy-ring ring-c" />
           <div className="energy-ring ring-d" />
 
-          <div className="chat-preview" aria-label="Krivya AI chat preview">
+          <div className="chat-preview" aria-label="Kynvor AI chat preview">
             <div className="preview-top">
               <div className="brand-mark small">K</div>
               <div>
-                <strong>Krivya AI</strong>
+                <strong>Kynvor AI</strong>
                 <span><i /> Assistant online</span>
               </div>
             </div>
@@ -124,10 +124,10 @@ export default function LandingPage({ onOpenChat }) {
       <section id="download" className="download-band">
         <div className="download-icon"><Download size={28} /></div>
         <div>
-          <h2>Download Krivya AI for Android</h2>
-          <p>Install the APK on your Android phone and use Krivya AI as your personal assistant.</p>
+          <h2>Download Kynvor AI for Android</h2>
+          <p>Install the APK on your Android phone and use Kynvor AI as your personal assistant.</p>
         </div>
-        <a className="primary-button compact" href={APK_DOWNLOAD_URL} download="KrivyaAI-v1.0.apk">
+        <a className="primary-button compact" href={APK_DOWNLOAD_URL} download="KynvorAI-v1.0.apk">
           <Download size={18} />
           Download APK
         </a>
@@ -143,7 +143,7 @@ export default function LandingPage({ onOpenChat }) {
         ))}
       </section>
 
-      <button className="mascot-wrap" type="button" onClick={() => window.speechSynthesis?.speak(new SpeechSynthesisUtterance("Hello, I'm Krivya AI."))}>
+      <button className="mascot-wrap" type="button" onClick={() => window.speechSynthesis?.speak(new SpeechSynthesisUtterance("Hello, I'm Kynvor AI."))}>
         <div className="mascot">
           <div className="mascot-head"><span /><span /><i /></div>
           <div className="mascot-ear left" />
