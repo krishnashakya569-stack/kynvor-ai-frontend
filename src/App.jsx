@@ -168,7 +168,9 @@ function App() {
         return
       }
     } catch {
-      // Some OAuth endpoints block preflight reads. In that case, continue with the normal redirect.
+      setAuthError(`${provider === 'google' ? 'Gmail' : 'GitHub'} login needs to be enabled in Supabase Auth settings before it can be used.`)
+      setAuthLoading(false)
+      return
     }
 
     window.location.assign(data.url)
