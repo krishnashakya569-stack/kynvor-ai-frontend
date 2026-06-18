@@ -141,23 +141,58 @@ function App() {
   const signInWithProvider = async (provider) => {
     setAuthError('')
     setAuthLoading(true)
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: `${window.location.origin}${window.location.pathname}#chat`,
+        skipBrowserRedirect: true,
       },
     })
     if (error) {
-      setAuthError(error.message)
+      setAuthError(error.message?.includes('provider')
+        ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
+        : error.message)
       setAuthLoading(false)
+      return
     }
+
+    try {
+      const response = await fetch(data.url, { redirect: 'manual' })
+      const isJson = response.headers.get('content-type')?.includes('application/json')
+      if (!response.ok && isJson) {
+        const providerError = await response.json()
+        setAuthError(providerError.msg?.includes('provider')
+          ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
+          : providerError.msg || 'Could not start social login.')
+        setAuthLoading(false)
+        return
+      }
+    } catch {
+      // Some OAuth endpoints block preflight reads. In that case, continue with the normal redirect.
+    }
+
+    window.location.assign(data.url)
+  }
+
+  const normalizePhone = (value) => {
+    const trimmed = value.trim()
+    if (trimmed.startsWith('+')) return trimmed.replace(/[^\d+]/g, '')
+    const digits = trimmed.replace(/\D/g, '')
+    if (digits.length === 10) return `+91${digits}`
+    if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`
+    return trimmed
   }
 
   const sendPhoneOtp = async (phone) => {
     setAuthError('')
     setAuthLoading(true)
-    const { error } = await supabase.auth.signInWithOtp({ phone })
-    if (error) setAuthError(error.message)
+    const normalizedPhone = normalizePhone(phone)
+    const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone })
+    if (error) {
+      setAuthError(error.message?.toLowerCase().includes('provider')
+        ? 'Phone login is not enabled in Supabase yet. Enable the Phone provider and SMS settings in Supabase Auth.'
+        : error.message)
+    }
     else setAuthError('OTP sent. Enter the code to continue.')
     setAuthLoading(false)
     return !error
@@ -166,8 +201,12 @@ function App() {
   const verifyPhoneOtp = async (phone, token) => {
     setAuthError('')
     setAuthLoading(true)
-    const { error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' })
-    if (error) setAuthError(error.message)
+    const { error } = await supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'sms' })
+    if (error) {
+      setAuthError(error.message?.toLowerCase().includes('provider')
+        ? 'Phone login is not enabled in Supabase yet. Enable the Phone provider and SMS settings in Supabase Auth.'
+        : error.message)
+    }
     setAuthLoading(false)
   }
 
