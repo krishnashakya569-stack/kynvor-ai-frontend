@@ -11,7 +11,9 @@ function isValidSupabaseUrl(value) {
     return false
   }
 }
-
+console.log("URL:", import.meta.env.VITE_SUPABASE_URL)
+console.log("KEY:", import.meta.env.VITE_SUPABASE_ANON_KEY)
+console.log("ERROR:", supabaseConfigError)
 export const supabaseConfigError = !supabaseUrl || !supabaseAnonKey
   ? 'Supabase URL or anon key is missing.'
   : !isValidSupabaseUrl(supabaseUrl)
