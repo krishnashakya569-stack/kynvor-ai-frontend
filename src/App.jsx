@@ -8,6 +8,7 @@ import SplashIntro from './components/SplashIntro'
 import { supabase, supabaseConfigError } from './lib/supabase'
 
 const isNativeApp = Capacitor.isNativePlatform()
+const AUTH_TIMEOUT_MS = 12000
 
 function App() {
   const [showChat, setShowChat] = useState(() => isNativeApp || window.location.hash === '#chat')
@@ -87,25 +88,84 @@ function App() {
   }, [createConversation])
 
   useEffect(() => {
+    let mounted = true
+    let authTimeout
+
+    const finishAuth = () => {
+      if (!mounted) return
+      window.clearTimeout(authTimeout)
+      setAuthLoading(false)
+    }
+
+    const cleanAuthUrl = () => {
+      const nextUrl = `${window.location.origin}${window.location.pathname}#chat`
+      window.history.replaceState(null, '', nextUrl)
+      setShowChat(true)
+    }
+
     if (!supabase) {
       setAuthError(supabaseConfigError || 'Supabase is not configured yet.')
-      setAuthLoading(false)
-      return
+      finishAuth()
+      return () => {
+        mounted = false
+        window.clearTimeout(authTimeout)
+      }
     }
-    console.log("SUPABASE OBJECT:", supabase)
-    console.log("CONFIG ERROR:", supabaseConfigError)
 
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setAuthError(error.message)
-      setSession(data?.session || null)
-      setAuthLoading(false)
-    })
+    const initAuth = async () => {
+      authTimeout = window.setTimeout(() => {
+        if (!mounted) return
+        setAuthError('Login is taking too long. Please try again, or check Supabase Auth redirect settings.')
+        setAuthLoading(false)
+      }, AUTH_TIMEOUT_MS)
+
+      try {
+        const params = new URLSearchParams(window.location.search)
+        const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
+
+        const authError = params.get('error_description') || hashParams.get('error_description')
+        if (authError) {
+          setAuthError(decodeURIComponent(authError.replace(/\+/g, ' ')))
+          cleanAuthUrl()
+        }
+
+        if (params.has('code')) {
+          const { data, error } = await supabase.auth.exchangeCodeForSession(window.location.href)
+          if (error) setAuthError(error.message)
+          if (data?.session) {
+            setSession(data.session)
+            cleanAuthUrl()
+          }
+        }
+
+        const { data, error } = await supabase.auth.getSession()
+        if (error) setAuthError(error.message)
+        if (mounted) {
+          setSession(data?.session || null)
+          if (data?.session) setShowChat(true)
+        }
+      } catch (error) {
+        if (mounted) setAuthError(error.message || 'Could not complete login. Please try again.')
+      } finally {
+        finishAuth()
+      }
+    }
+
+    initAuth()
 
     const { data: listener } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession)
+      if (nextSession) {
+        setShowChat(true)
+        setAuthLoading(false)
+      }
     })
 
-    return () => listener.subscription.unsubscribe()
+    return () => {
+      mounted = false
+      window.clearTimeout(authTimeout)
+      listener?.subscription?.unsubscribe()
+    }
   }, [])
 
   useEffect(() => {
@@ -141,21 +201,22 @@ function App() {
   }
 
   const signInWithProvider = async (provider) => {
-  setAuthError('')
-  setAuthLoading(true)
+    setAuthError('')
+    setAuthLoading(true)
 
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider,
-    options: {
-      redirectTo: window.location.origin,
-    },
-  })
+    const redirectTo = `${window.location.origin}${window.location.pathname}`
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: { redirectTo },
+    })
 
-  if (error) {
-    setAuthError(error.message)
-    setAuthLoading(false)
+    if (error) {
+      setAuthError(error.message?.toLowerCase().includes('provider')
+        ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
+        : error.message)
+      setAuthLoading(false)
+    }
   }
-}
 
    
 
