@@ -141,42 +141,23 @@ function App() {
   }
 
   const signInWithProvider = async (provider) => {
-    setAuthError('')
-    setAuthLoading(true)
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}${window.location.pathname}#chat`,
-        skipBrowserRedirect: true,
-      },
-    })
-    if (error) {
-      setAuthError(error.message?.includes('provider')
-        ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
-        : error.message)
-      setAuthLoading(false)
-      return
-    }
+  setAuthError('')
+  setAuthLoading(true)
 
-    try {
-      const response = await fetch(data.url, { redirect: 'manual' })
-      const isJson = response.headers.get('content-type')?.includes('application/json')
-      if (!response.ok && isJson) {
-        const providerError = await response.json()
-        setAuthError(providerError.msg?.includes('provider')
-          ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
-          : providerError.msg || 'Could not start social login.')
-        setAuthLoading(false)
-        return
-      }
-    } catch {
-      setAuthError(`${provider === 'google' ? 'Gmail' : 'GitHub'} login needs to be enabled in Supabase Auth settings before it can be used.`)
-      setAuthLoading(false)
-      return
-    }
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider,
+    options: {
+      redirectTo: window.location.origin,
+    },
+  })
 
-    window.location.assign(data.url)
+  if (error) {
+    setAuthError(error.message)
+    setAuthLoading(false)
   }
+}
+
+   
 
   const normalizePhone = (value) => {
     const trimmed = value.trim()
