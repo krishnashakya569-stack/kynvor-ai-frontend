@@ -9,6 +9,33 @@ import { supabase, supabaseConfigError } from './lib/supabase'
 
 const isNativeApp = Capacitor.isNativePlatform()
 const AUTH_TIMEOUT_MS = 12000
+const LOCAL_SESSION_KEY = 'kynvorLocalSession'
+const LOCAL_CONVERSATIONS_KEY = 'kynvorLocalConversations'
+
+function makeLocalSession(identifier) {
+  return {
+    access_token: 'local',
+    provider_token: null,
+    user: {
+      id: `local:${identifier || 'guest'}`,
+      email: identifier?.includes('@') ? identifier : `${identifier || 'guest'}@kynvor.local`,
+      user_metadata: { full_name: 'Kynvor User' },
+    },
+    isLocal: true,
+  }
+}
+
+function readLocalConversations() {
+  try {
+    return JSON.parse(localStorage.getItem(LOCAL_CONVERSATIONS_KEY) || '[]')
+  } catch {
+    return []
+  }
+}
+
+function writeLocalConversations(conversations) {
+  localStorage.setItem(LOCAL_CONVERSATIONS_KEY, JSON.stringify(conversations))
+}
 
 function App() {
   const [showChat, setShowChat] = useState(() => isNativeApp || window.location.hash === '#chat')
@@ -21,6 +48,9 @@ function App() {
   const [isMobile, setIsMobile] = useState(() => window.innerWidth <= 768)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [showIntro, setShowIntro] = useState(() => !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+  const [authOffline, setAuthOffline] = useState(false)
+  const sessionUserId = session?.user?.id
+  const isLocalSession = Boolean(session?.isLocal)
 
   useEffect(() => {
     const onResize = () => {
@@ -43,8 +73,22 @@ function App() {
     setShowChat(false)
   }
 
-  const createConversation = useCallback(async (userId = session?.user?.id) => {
+  const createConversation = useCallback(async (userId = sessionUserId) => {
     if (!userId) return null
+
+    if (isLocalSession || authOffline || !supabase) {
+      const conversation = {
+        id: crypto.randomUUID?.() || `local-${Date.now()}`,
+        title: 'New conversation',
+        messages: [],
+        updated_at: new Date().toISOString(),
+      }
+      const next = [conversation, ...readLocalConversations()]
+      writeLocalConversations(next)
+      setConversations(next)
+      setActiveId(conversation.id)
+      return conversation
+    }
 
     const { data, error } = await supabase
       .from('conversations')
@@ -57,13 +101,24 @@ function App() {
     setConversations(prev => [data, ...prev])
     setActiveId(data.id)
     return data
-  }, [session?.user?.id])
+  }, [authOffline, isLocalSession, sessionUserId])
 
   const loadConversations = useCallback(async (userId) => {
     setLoadingChats(true)
     setAuthError('')
 
     try {
+      if (isLocalSession || authOffline || !supabase) {
+        const localConversations = readLocalConversations()
+        if (localConversations.length) {
+          setConversations(localConversations)
+          setActiveId(localConversations[0].id)
+        } else {
+          await createConversation(userId)
+        }
+        return
+      }
+
       const { data, error } = await supabase
         .from('conversations')
         .select('id,title,messages,updated_at')
@@ -85,7 +140,7 @@ function App() {
     } finally {
       setLoadingChats(false)
     }
-  }, [createConversation])
+  }, [authOffline, createConversation, isLocalSession])
 
   useEffect(() => {
     let mounted = true
@@ -105,6 +160,9 @@ function App() {
 
     if (!supabase) {
       setAuthError(supabaseConfigError || 'Supabase is not configured yet.')
+      setAuthOffline(true)
+      const localSession = localStorage.getItem(LOCAL_SESSION_KEY)
+      if (localSession) setSession(JSON.parse(localSession))
       finishAuth()
       return () => {
         mounted = false
@@ -144,8 +202,13 @@ function App() {
           setSession(data?.session || null)
           if (data?.session) setShowChat(true)
         }
-      } catch (error) {
-        if (mounted) setAuthError(error.message || 'Could not complete login. Please try again.')
+      } catch {
+        if (mounted) {
+          setAuthOffline(true)
+          const localSession = localStorage.getItem(LOCAL_SESSION_KEY)
+          if (localSession) setSession(JSON.parse(localSession))
+          setAuthError('Supabase is not reachable right now. You can still sign in locally and use Kynvor on this device.')
+        }
       } finally {
         finishAuth()
       }
@@ -175,34 +238,60 @@ function App() {
   }, [showIntro])
 
   useEffect(() => {
-    if (!session?.user) {
+    if (!sessionUserId) {
       setConversations([])
       setActiveId(null)
       return
     }
 
-    loadConversations(session.user.id)
-  }, [loadConversations, session?.user])
+    loadConversations(sessionUserId)
+  }, [loadConversations, sessionUserId])
   const signIn = async (email, password) => {
     setAuthError('')
     setAuthLoading(true)
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
-    if (error) setAuthError(error.message)
-    setAuthLoading(false)
+    try {
+      if (!supabase || authOffline) throw new Error('Supabase offline')
+      const { error } = await supabase.auth.signInWithPassword({ email, password })
+      if (error) setAuthError(error.message)
+    } catch {
+      const localSession = makeLocalSession(email)
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(localSession))
+      setSession(localSession)
+      setShowChat(true)
+      setAuthOffline(true)
+    } finally {
+      setAuthLoading(false)
+    }
   }
 
   const signUp = async (email, password) => {
     setAuthError('')
     setAuthLoading(true)
-    const { error } = await supabase.auth.signUp({ email, password })
-    if (error) setAuthError(error.message)
-    else setAuthError('Account created. Check your email if confirmation is enabled, then sign in.')
-    setAuthLoading(false)
+    try {
+      if (!supabase || authOffline) throw new Error('Supabase offline')
+      const { error } = await supabase.auth.signUp({ email, password })
+      if (error) setAuthError(error.message)
+      else setAuthError('Account created. Check your email if confirmation is enabled, then sign in.')
+    } catch {
+      const localSession = makeLocalSession(email)
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(localSession))
+      setSession(localSession)
+      setShowChat(true)
+      setAuthOffline(true)
+    } finally {
+      setAuthLoading(false)
+    }
   }
 
   const signInWithProvider = async (provider) => {
     setAuthError('')
     setAuthLoading(true)
+
+    if (authOffline || !supabase) {
+      setAuthError('Supabase is not reachable, so social login cannot start. Use email sign-in for local access, then reconnect the correct Supabase project URL.')
+      setAuthLoading(false)
+      return
+    }
 
     const redirectTo = `${window.location.origin}${window.location.pathname}`
     const { error } = await supabase.auth.signInWithOAuth({
@@ -232,6 +321,11 @@ function App() {
   const sendPhoneOtp = async (phone) => {
     setAuthError('')
     setAuthLoading(true)
+    if (authOffline || !supabase) {
+      setAuthError('Phone login needs Supabase SMS. Supabase is not reachable right now, so use email sign-in for local access.')
+      setAuthLoading(false)
+      return false
+    }
     const normalizedPhone = normalizePhone(phone)
     const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone })
     if (error) {
@@ -247,6 +341,11 @@ function App() {
   const verifyPhoneOtp = async (phone, token) => {
     setAuthError('')
     setAuthLoading(true)
+    if (authOffline || !supabase) {
+      setAuthError('Phone login needs Supabase SMS. Supabase is not reachable right now.')
+      setAuthLoading(false)
+      return
+    }
     const { error } = await supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'sms' })
     if (error) {
       setAuthError(error.message?.toLowerCase().includes('provider')
@@ -257,7 +356,10 @@ function App() {
   }
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    localStorage.removeItem(LOCAL_SESSION_KEY)
+    if (supabase && !isLocalSession) await supabase.auth.signOut()
+    setSession(null)
+    setShowChat(!isNativeApp && window.location.hash === '#chat')
   }
 
   const newConversation = async () => {
@@ -281,10 +383,16 @@ function App() {
 
     const title = messages[0]?.content.slice(0, 35) || 'New conversation'
     const nextConversation = { ...activeConversation, messages, title, updated_at: new Date().toISOString() }
-
-    setConversations(prev => prev
+    const sortedConversations = conversations
       .map(c => c.id === activeId ? nextConversation : c)
-      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at)))
+      .sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at))
+
+    setConversations(sortedConversations)
+
+    if (isLocalSession || authOffline || !supabase) {
+      writeLocalConversations(sortedConversations)
+      return
+    }
 
     const { error } = await supabase
       .from('conversations')
