@@ -92,6 +92,8 @@ function App() {
       setAuthLoading(false)
       return
     }
+    console.log("SUPABASE OBJECT:", supabase)
+    console.log("CONFIG ERROR:", supabaseConfigError)
 
     supabase.auth.getSession().then(({ data, error }) => {
       if (error) setAuthError(error.message)
