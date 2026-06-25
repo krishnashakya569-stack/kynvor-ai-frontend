@@ -1,4 +1,4 @@
-@tailwind base;
+﻿@tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -2914,6 +2914,15 @@ a {
   border: 0;
 }
 
+.auth-credit {
+  margin: 18px 0 0;
+  text-align: center;
+  font-size: 12px;
+  letter-spacing: 0.02em;
+  color: rgba(246, 238, 232, 0.45);
+}
+
+
 /* CHAT LAYOUT FIX: pinned composer, internal scrolling, user font scale */
 html,
 body,
@@ -3328,4 +3337,14 @@ body:has(.chat-app-shell) {
   .auth-socials {
     grid-template-columns: 1fr;
   }
+}
+
+.site-footer {
+  position: relative;
+  z-index: 1;
+  padding: 28px 24px 36px;
+  text-align: center;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  color: rgba(246, 238, 232, 0.45);
 }

@@ -156,6 +156,10 @@ export default function LandingPage({ onOpenChat }) {
         </div>
         <div className="speech-bubble">Need <strong>help</strong><br />studying?<small>I'm here for you!</small></div>
       </button>
+
+      <footer className="site-footer">
+        <p>Created by Krishna Shakya</p>
+      </footer>
     </main>
   )
 }

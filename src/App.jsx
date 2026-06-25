@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Capacitor } from '@capacitor/core'
+import { Browser } from '@capacitor/browser'
+import { App as CapApp } from '@capacitor/app'
 import Sidebar from './components/Sidebar'
 import ChatWindow from './components/ChatWindow'
 import AuthPanel from './components/AuthPanel'
@@ -41,6 +43,7 @@ function App() {
   const [showChat, setShowChat] = useState(() => isNativeApp || window.location.hash === '#chat')
   const [session, setSession] = useState(null)
   const [authLoading, setAuthLoading] = useState(true)
+  const [authActionLoading, setAuthActionLoading] = useState(false)
   const [authError, setAuthError] = useState('')
   const [conversations, setConversations] = useState([])
   const [activeId, setActiveId] = useState(null)
@@ -232,6 +235,37 @@ function App() {
   }, [])
 
   useEffect(() => {
+    if (!isNativeApp || !supabase) return
+
+    const handleDeepLink = async ({ url }) => {
+      if (!url || !url.startsWith('com.kynvor.app://auth/callback')) return
+
+      await Browser.close().catch(() => {})
+      setAuthError('')
+
+      try {
+        const { data, error } = await supabase.auth.exchangeCodeForSession(url)
+        if (error) {
+          setAuthError(error.message)
+        } else if (data?.session) {
+          setSession(data.session)
+          setShowChat(true)
+        }
+      } catch {
+        setAuthError('Could not complete sign-in. Please try again.')
+      } finally {
+        setAuthActionLoading(false)
+      }
+    }
+
+    const listenerPromise = CapApp.addListener('appUrlOpen', handleDeepLink)
+
+    return () => {
+      listenerPromise.then((handle) => handle.remove())
+    }
+  }, [])
+
+  useEffect(() => {
     if (!showIntro) return
     const introTimer = window.setTimeout(() => setShowIntro(false), 2800)
     return () => window.clearTimeout(introTimer)
@@ -248,7 +282,7 @@ function App() {
   }, [loadConversations, sessionUserId])
   const signIn = async (email, password) => {
     setAuthError('')
-    setAuthLoading(true)
+    setAuthActionLoading(true)
     try {
       if (!supabase || authOffline) throw new Error('Supabase offline')
       const { error } = await supabase.auth.signInWithPassword({ email, password })
@@ -260,13 +294,13 @@ function App() {
       setShowChat(true)
       setAuthOffline(true)
     } finally {
-      setAuthLoading(false)
+      setAuthActionLoading(false)
     }
   }
 
   const signUp = async (email, password) => {
     setAuthError('')
-    setAuthLoading(true)
+    setAuthActionLoading(true)
     try {
       if (!supabase || authOffline) throw new Error('Supabase offline')
       const { error } = await supabase.auth.signUp({ email, password })
@@ -279,17 +313,42 @@ function App() {
       setShowChat(true)
       setAuthOffline(true)
     } finally {
-      setAuthLoading(false)
+      setAuthActionLoading(false)
     }
   }
 
   const signInWithProvider = async (provider) => {
     setAuthError('')
-    setAuthLoading(true)
+    setAuthActionLoading(true)
 
     if (authOffline || !supabase) {
       setAuthError('Supabase is not reachable, so social login cannot start. Use email sign-in for local access, then reconnect the correct Supabase project URL.')
-      setAuthLoading(false)
+      setAuthActionLoading(false)
+      return
+    }
+
+    if (isNativeApp) {
+      // Native app: Supabase must redirect to our custom URL scheme, not
+      // https://localhost. We open the OAuth URL in the system browser and
+      // listen for the app to be reopened via that custom scheme deep link.
+      const redirectTo = 'com.kynvor.app://auth/callback'
+      const { data, error } = await supabase.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo, skipBrowserRedirect: true },
+      })
+
+      if (error || !data?.url) {
+        setAuthError(error?.message?.toLowerCase().includes('provider')
+          ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
+          : (error?.message || 'Could not start sign-in.'))
+        setAuthActionLoading(false)
+        return
+      }
+
+      await Browser.open({ url: data.url, presentationStyle: 'popover' })
+      // Loading state is cleared once the deep-link listener (set up in
+      // useEffect below) receives the callback and the session updates, or
+      // the user dismisses the browser without finishing sign-in.
       return
     }
 
@@ -303,56 +362,8 @@ function App() {
       setAuthError(error.message?.toLowerCase().includes('provider')
         ? `${provider === 'google' ? 'Gmail' : 'GitHub'} login is not enabled in Supabase yet. Enable this provider in Supabase Auth settings, then try again.`
         : error.message)
-      setAuthLoading(false)
+      setAuthActionLoading(false)
     }
-  }
-
-   
-
-  const normalizePhone = (value) => {
-    const trimmed = value.trim()
-    if (trimmed.startsWith('+')) return trimmed.replace(/[^\d+]/g, '')
-    const digits = trimmed.replace(/\D/g, '')
-    if (digits.length === 10) return `+91${digits}`
-    if (digits.length === 12 && digits.startsWith('91')) return `+${digits}`
-    return trimmed
-  }
-
-  const sendPhoneOtp = async (phone) => {
-    setAuthError('')
-    setAuthLoading(true)
-    if (authOffline || !supabase) {
-      setAuthError('Phone login needs Supabase SMS. Supabase is not reachable right now, so use email sign-in for local access.')
-      setAuthLoading(false)
-      return false
-    }
-    const normalizedPhone = normalizePhone(phone)
-    const { error } = await supabase.auth.signInWithOtp({ phone: normalizedPhone })
-    if (error) {
-      setAuthError(error.message?.toLowerCase().includes('provider')
-        ? 'Phone login is not enabled in Supabase yet. Enable the Phone provider and SMS settings in Supabase Auth.'
-        : error.message)
-    }
-    else setAuthError('OTP sent. Enter the code to continue.')
-    setAuthLoading(false)
-    return !error
-  }
-
-  const verifyPhoneOtp = async (phone, token) => {
-    setAuthError('')
-    setAuthLoading(true)
-    if (authOffline || !supabase) {
-      setAuthError('Phone login needs Supabase SMS. Supabase is not reachable right now.')
-      setAuthLoading(false)
-      return
-    }
-    const { error } = await supabase.auth.verifyOtp({ phone: normalizePhone(phone), token, type: 'sms' })
-    if (error) {
-      setAuthError(error.message?.toLowerCase().includes('provider')
-        ? 'Phone login is not enabled in Supabase yet. Enable the Phone provider and SMS settings in Supabase Auth.'
-        : error.message)
-    }
-    setAuthLoading(false)
   }
 
   const signOut = async () => {
@@ -420,9 +431,8 @@ function App() {
         onSignIn={signIn}
         onSignUp={signUp}
         onProviderSignIn={signInWithProvider}
-        onSendPhoneOtp={sendPhoneOtp}
-        onVerifyPhoneOtp={verifyPhoneOtp}
-        loading={authLoading}
+        onClearError={() => setAuthError('')}
+        loading={authActionLoading}
         error={authError}
         onBack={openWebsite}
         isNativeApp={isNativeApp}
